@@ -1,11 +1,11 @@
 import idb from 'idb';
 
-var dbPromise = idb.open('test-db', 1, function(upgradeDb) {
+var dbPromise = idb.open('text-db', 1, function(upgradeDb) {
   var keyValStore = upgradeDb.createObjectStore('keyval');
-  keyValStore.put("world", "hello");
+  keyValStore.put('world', 'hello');
 });
+//necessary code to create database for IDB
 
-// read "hello" in "keyval"
 dbPromise.then(function(db) {
   var tx = db.transaction('keyval');
   var keyValStore = tx.objectStore('keyval');
@@ -13,19 +13,16 @@ dbPromise.then(function(db) {
 }).then(function(val) {
   console.log('The value of "hello" is:', val);
 });
+//allows us to read from the database. creating path to object, passing in key
 
-// set "foo" to be "bar" in "keyval"
+//adding another value to the objectStore.
 dbPromise.then(function(db) {
   var tx = db.transaction('keyval', 'readwrite');
   var keyValStore = tx.objectStore('keyval');
   keyValStore.put('bar', 'foo');
+  //calling .put to set the value to it's assigned key
   return tx.complete;
+  //returns a promise if and when that tx(transaction) completes and rejects it if it fails
 }).then(function() {
   console.log('Added foo:bar to keyval');
-});
-
-dbPromise.then(function(db) {
-  // TODO: in the keyval store, set
-  // "favoriteAnimal" to your favourite animal
-  // eg "cat" or "dog"
 });
