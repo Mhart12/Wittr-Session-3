@@ -26,3 +26,12 @@ dbPromise.then(function(db) {
 }).then(function() {
   console.log('Added foo:bar to keyval');
 });
+
+dbPromise.then(function(db) {
+  var tx = db.transaction('keyval', 'readwrite');
+  var keyValStore = tx.objectStore('keyval');
+  keyValStore.put('horse', 'favoriteAnimal');
+  return tx.complete;
+}).then(function() {
+  console.log('Added your favorite');
+});
