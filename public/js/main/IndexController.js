@@ -31,7 +31,6 @@ export default function IndexController(container) {
   setInterval(function() {
     indexController._cleanImageCache();
   }, 1000 * 60 * 5);
-  //cache can get out of control if user keeps page open, above will call it every 5 minutes
 
   this._showCachedMessages().then(function() {
     indexController._openSocket();
@@ -157,9 +156,41 @@ IndexController.prototype._openSocket = function() {
 };
 
 IndexController.prototype._cleanImageCache = function() {
+  return this._dbPromise.then(function(db) {
+    if (!db) return;
 
+    // TODO: open the 'wittr' object store, get all the messages,
+    // gather all the photo urls.
+    //
+    // Open the 'wittr-content-imgs' cache, and delete any entry
+    // that you no longer need.
+    var imagesNeeded = [];
+    //start by keeping an array of images that you want to keep
+    var tx = db.transaction('wittrs');
+    //create a transaction to look at the wittrs store
+    return tx.objectStore('wittrs').getAll().then(function(messages) {
+      messages.forEach(function(message) {
+        if (message.photo) {
+          imagesNeeded.push(message.photo);
+          //get all the messages, looking to see if it contains photo property.
+          //If so, we're going to add those to the arroy of images we want to keep.
+        }
+      });
+
+      return caches.open('wittr-content-imgs');
+    }).then(function(cache) {
+      return cache.keys().then(function(requests) {
+        requests.forEach(function(request) {
+          var url = new URL(request.url);
+          //If the pathname of the URL isn't in our list of images needed, it passes the request to delete
+          if (!imagesNeeded.includes(url.pathname)) {
+            cache.delete(request);
+          }
+        });
+      });
+    });
+  });
 };
-//this brings IndexDB and Cache API together
 
 // called when the web socket sends message data
 IndexController.prototype._onSocketMessage = function(data) {
