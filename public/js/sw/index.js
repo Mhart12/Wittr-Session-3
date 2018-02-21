@@ -1,4 +1,4 @@
-var staticCacheName = 'wittr-static-v7';
+var staticCacheName = 'wittr-static-v8';
 var contentImgsCache = 'wittr-content-imgs';
 var allCaches = [
   staticCacheName,
@@ -47,6 +47,12 @@ self.addEventListener('fetch', function(event) {
       event.respondWith(servePhoto(event.request));
       return;
     }
+    // TODO: respond to avatar urls by responding with
+    // the return value of serveAvatar(event.request)
+    if (requestUrl.pathname.startsWith('/avatars/')) {
+      event.respondWith(serveAvatar(event.request));
+      return;
+    }
   }
 
   event.respondWith(
@@ -56,20 +62,34 @@ self.addEventListener('fetch', function(event) {
   );
 });
 
-function servePhoto(request) {
-  // Photo urls look like:
-  // /photos/9-8028-7527734776-e1d2bda28e-800px.jpg
-  // But storageUrl has the -800px.jpg bit missing.
+function serveAvatar(request) {
+  // Avatar urls look like:
+  // avatars/sam-2x.jpg
+  // But storageUrl has the -2x.jpg bit missing.
   // Use this url to store & match the image in the cache.
-  // This means you only store one copy of each photo.
-  var storageUrl = request.url.replace(/-\d+px\.jpg$/, '');
+  // This means you only store one copy of each avatar.
+  var storageUrl = request.url.replace(/-\dx\.jpg$/, '');
 
   // TODO: return images from the "wittr-content-imgs" cache
-  // if they're in there. Otherwise, fetch the images from
-  // the network, put them into the cache, and send it back
-  // to the browser.
+  // if they're in there. But afterwards, go to the network
+  // to update the entry in the cache.
   //
-  // HINT: cache.put supports a plain url as the first parameter
+  // Note that this is slightly different to servePhoto!
+  return caches.open(contentImgsCache).then(function(cache) {
+    return cache.match(storageUrl).then(function(response) {
+      var networkFetch = fetch(request).then(function(networkResponse) {
+        //if you get an avatar, putting a clone in the cache with the storageUrl.
+        cache.put(storageUrl, networkResponse.clone());
+        return networkResponse;
+      });
+      return response || networkFetch;
+    });
+  });
+}
+
+function servePhoto(request) {
+  var storageUrl = request.url.replace(/-\d+px\.jpg$/, '');
+
   return caches.open(contentImgsCache).then(function(cache) {
     return cache.match(storageUrl).then(function(response) {
       if (response) return response;
@@ -77,7 +97,6 @@ function servePhoto(request) {
       return fetch(request).then(function(networkResponse) {
         cache.put(storageUrl, networkResponse.clone());
         return networkResponse;
-        //copy of response goes to the cache, originial to the browser
       });
     });
   });

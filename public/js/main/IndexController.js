@@ -159,22 +159,16 @@ IndexController.prototype._cleanImageCache = function() {
   return this._dbPromise.then(function(db) {
     if (!db) return;
 
-    // TODO: open the 'wittr' object store, get all the messages,
-    // gather all the photo urls.
-    //
-    // Open the 'wittr-content-imgs' cache, and delete any entry
-    // that you no longer need.
     var imagesNeeded = [];
-    //start by keeping an array of images that you want to keep
+
     var tx = db.transaction('wittrs');
-    //create a transaction to look at the wittrs store
     return tx.objectStore('wittrs').getAll().then(function(messages) {
       messages.forEach(function(message) {
         if (message.photo) {
           imagesNeeded.push(message.photo);
-          //get all the messages, looking to see if it contains photo property.
-          //If so, we're going to add those to the arroy of images we want to keep.
         }
+        imagesNeeded.push(message.avatar);
+        //cache avatars in the same cache as photos
       });
 
       return caches.open('wittr-content-imgs');
@@ -182,10 +176,7 @@ IndexController.prototype._cleanImageCache = function() {
       return cache.keys().then(function(requests) {
         requests.forEach(function(request) {
           var url = new URL(request.url);
-          //If the pathname of the URL isn't in our list of images needed, it passes the request to delete
-          if (!imagesNeeded.includes(url.pathname)) {
-            cache.delete(request);
-          }
+          if (!imagesNeeded.includes(url.pathname)) cache.delete(request);
         });
       });
     });
