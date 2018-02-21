@@ -24,8 +24,14 @@ export default function IndexController(container) {
   this._lostConnectionToast = null;
   this._dbPromise = openDatabase();
   this._registerServiceWorker();
+  this._cleanImageCache();
 
   var indexController = this;
+
+  setInterval(function() {
+    indexController._cleanImageCache();
+  }, 1000 * 60 * 5);
+  //cache can get out of control if user keeps page open, above will call it every 5 minutes
 
   this._showCachedMessages().then(function() {
     indexController._openSocket();
@@ -150,6 +156,11 @@ IndexController.prototype._openSocket = function() {
   });
 };
 
+IndexController.prototype._cleanImageCache = function() {
+
+};
+//this brings IndexDB and Cache API together
+
 // called when the web socket sends message data
 IndexController.prototype._onSocketMessage = function(data) {
   var messages = JSON.parse(data);
@@ -163,101 +174,13 @@ IndexController.prototype._onSocketMessage = function(data) {
       store.put(message);
     });
 
-    store.index('by-date').openCursor(null, 'prev').then(function(cursor) {
+    // limit store to 30 items
+    store.index('by-date').openCursor(null, "prev").then(function(cursor) {
       return cursor.advance(30);
     }).then(function deleteRest(cursor) {
       if (!cursor) return;
       cursor.delete();
       return cursor.continue().then(deleteRest);
-    });
-    // TODO: keep the newest 30 entries in 'wittrs',
-    // but delete the rest.
-    //
-    // Hint: you can use .openCursor(null, 'prev') to
-    // open a cursor that goes through an index/store
-    // backwards.
-  });
-
-  this._postsView.addPosts(messages);
-};
-
-
-IndexController.prototype._trackInstalling = function(worker) {
-  var indexController = this;
-  worker.addEventListener('statechange', function() {
-    if (worker.state == 'installed') {
-      indexController._updateReady(worker);
-    }
-  });
-};
-
-IndexController.prototype._updateReady = function(worker) {
-  var toast = this._toastsView.show("New version available", {
-    buttons: ['refresh', 'dismiss']
-  });
-
-  toast.answer.then(function(answer) {
-    if (answer != 'refresh') return;
-    worker.postMessage({action: 'skipWaiting'});
-  });
-};
-
-// open a connection to the server for live updates
-IndexController.prototype._openSocket = function() {
-  var indexController = this;
-  var latestPostDate = this._postsView.getLatestPostDate();
-
-  // create a url pointing to /updates with the ws protocol
-  var socketUrl = new URL('/updates', window.location);
-  socketUrl.protocol = 'ws';
-
-  if (latestPostDate) {
-    socketUrl.search = 'since=' + latestPostDate.valueOf();
-  }
-
-  // this is a little hack for the settings page's tests,
-  // it isn't needed for Wittr
-  socketUrl.search += '&' + location.search.slice(1);
-
-  var ws = new WebSocket(socketUrl.href);
-
-  // add listeners
-  ws.addEventListener('open', function() {
-    if (indexController._lostConnectionToast) {
-      indexController._lostConnectionToast.hide();
-    }
-  });
-
-  ws.addEventListener('message', function(event) {
-    requestAnimationFrame(function() {
-      indexController._onSocketMessage(event.data);
-    });
-  });
-
-  ws.addEventListener('close', function() {
-    // tell the user
-    if (!indexController._lostConnectionToast) {
-      indexController._lostConnectionToast = indexController._toastsView.show("Unable to connect. Retrying…");
-    }
-
-    // try and reconnect in 5 seconds
-    setTimeout(function() {
-      indexController._openSocket();
-    }, 5000);
-  });
-};
-
-// called when the web socket sends message data
-IndexController.prototype._onSocketMessage = function(data) {
-  var messages = JSON.parse(data);
-
-  this._dbPromise.then(function(db) {
-    if (!db) return;
-
-    var tx = db.transaction('wittrs', 'readwrite');
-    var store = tx.objectStore('wittrs');
-    messages.forEach(function(message) {
-      store.put(message);
     });
   });
 
